@@ -1,31 +1,32 @@
-﻿using RazorEngine.Configuration;
+﻿using RazorEngine;
+using RazorEngine.Configuration;
 using RazorEngine.Templating;
 using System;
 using System.Configuration;
 using System.IO;
 using System.Text.RegularExpressions;
 
-namespace Lski.HtmlActionResult {
-
+namespace Lski.HtmlActionResult
+{
 	/// <summary>
 	/// Created as an easy to use wrapper for the razor engine, the caching is based on this article: http://stackoverflow.com/a/21330077/653458 I have cleaned it up slightly though
 	/// </summary>
-	internal static class RazorEngineWrapper {
-
+	internal static class RazorEngineWrapper
+	{
 		private const string _ignoreCacheSettingName = "razorenginewrapper.ignorecache";
 
-		static RazorEngineWrapper() {
-
-			var templateConfig = new TemplateServiceConfiguration {
+		static RazorEngineWrapper()
+		{
+			Engine.Razor = RazorEngineService.Create(new TemplateServiceConfiguration
+			{
 				BaseTemplateType = typeof(Template<>),
 				EncodedStringFactory = new RazorEngine.Text.RawStringFactory()
-			};
-
-			RazorEngine.Razor.SetTemplateService(new TemplateService(templateConfig));
+			});
 
 			var setting = ConfigurationManager.AppSettings[_ignoreCacheSettingName];
 
-			if ("true".Equals(setting, StringComparison.OrdinalIgnoreCase)) {
+			if ("true".Equals(setting, StringComparison.OrdinalIgnoreCase))
+			{
 				IgnoreCache = true;
 			}
 		}
@@ -35,27 +36,24 @@ namespace Lski.HtmlActionResult {
 		/// </summary>
 		public static bool IgnoreCache { get; set; }
 
-		public static string Parse(string name, object model, DynamicViewBag bag = null) {
-
-			if (IgnoreCache) {
-
+		public static string Parse(string name, object model, DynamicViewBag bag = null)
+		{
+			if (IgnoreCache || !Engine.Razor.IsTemplateCached(name, model == null ? null : model.GetType()))
+			{
 				var content = LoadContent(name);
 
 				return (bag == null)
-					? RazorEngine.Razor.Parse(content, model)
-					: RazorEngine.Razor.Parse(content, model, bag, null);
-			}
-			
-			if (RazorEngine.Razor.Resolve(name) == null) {
-				RazorEngine.Razor.Compile(LoadContent(name), name);
+					? Engine.Razor.RunCompile(content, name, null, model)
+					: Engine.Razor.RunCompile(content, name, null, model, bag);
 			}
 
-			return (bag == null) ? RazorEngine.Razor.Run(name, model) : RazorEngine.Razor.Run(name, model, bag);
+			return (bag == null) ? Engine.Razor.Run(name, null, model) : Engine.Razor.Run(name, null, model, bag);
 		}
 
-		private static string LoadContent(string name) {
-
-			if (String.IsNullOrEmpty(name)) {
+		private static string LoadContent(string name)
+		{
+			if (String.IsNullOrEmpty(name))
+			{
 				throw new ArgumentException("name");
 			}
 
@@ -71,9 +69,10 @@ namespace Lski.HtmlActionResult {
 				filename + ".htm"
 			};
 
-			foreach (var path in pathsToTest) {
-
-				if (File.Exists(path)) {
+			foreach (var path in pathsToTest)
+			{
+				if (File.Exists(path))
+				{
 					return File.ReadAllText(path);
 				}
 			}
